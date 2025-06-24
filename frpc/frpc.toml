@@ -1,15 +1,14 @@
 serverAddr = "frps"
 serverPort = 7000
-transport.protocol = "tcp"
 
 transport.tls.enable        = true
-transport.tls.certFile      = "/etc/frp/certs/client.crt"
-transport.tls.keyFile       = "/etc/frp/certs/client.key"
+transport.tls.certFile      = "/etc/frp/certs/frpc.crt"
+transport.tls.keyFile       = "/etc/frp/certs/frpc.key"
 transport.tls.trustedCaFile = "/etc/frp/certs/CA.crt"
 transport.tls.serverName    = "server"
 
 [[proxies]]
-name       = "example-client"
+name       = "echo-service-via-mtls"
 type       = "tcp"
 localIP    = "backend"
 localPort  = 8080

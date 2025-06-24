@@ -12,4 +12,5 @@ webServer.password = "admin"
 
 allowPorts = [
   { single = 9003 },
+  { start = 9050, end = 9100 }
 ]

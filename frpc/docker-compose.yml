@@ -4,8 +4,8 @@ services:
     command: ["-c", "/etc/frp/frpc.toml"]
     volumes:
       - ./frpc.toml:/etc/frp/frpc.toml:ro
-      - ../certs/client/client.crt:/etc/frp/certs/client.crt:ro
-      - ../certs/client/client.key:/etc/frp/certs/client.key:ro
+      - ../certs/client/client.crt:/etc/frp/certs/frpc.crt:ro
+      - ../certs/client/client.key:/etc/frp/certs/frpc.key:ro
       - ../certs/FRP_CA.crt:/etc/frp/certs/CA.crt:ro
     networks: [frpnet]
   

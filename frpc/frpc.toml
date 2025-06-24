@@ -1,0 +1,16 @@
+serverAddr = "frps"
+serverPort = 7000
+transport.protocol = "tcp"
+
+transport.tls.enable        = true
+transport.tls.certFile      = "/etc/frp/certs/client.crt"
+transport.tls.keyFile       = "/etc/frp/certs/client.key"
+transport.tls.trustedCaFile = "/etc/frp/certs/CA.crt"
+transport.tls.serverName    = "server"
+
+[[proxies]]
+name       = "example-client"
+type       = "tcp"
+localIP    = "backend"
+localPort  = 8080
+remotePort = 9003

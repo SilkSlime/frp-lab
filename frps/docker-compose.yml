@@ -1,0 +1,17 @@
+services:
+  frps:
+    image: snowdreamtech/frps:latest
+    command: ["-c", "/etc/frp/frps.toml"]
+    volumes:
+      - ./frps.toml:/etc/frp/frps.toml:ro
+      - ../certs/server/server.crt:/etc/frp/certs/frps.crt:ro
+      - ../certs/server/server.key:/etc/frp/certs/frps.key:ro
+      - ../certs/FRP_CA.crt:/etc/frp/certs/CA.crt:ro
+    networks: [frpnet]
+    ports:
+      - "7500:7500"
+      - "9003:9003"
+
+networks:
+  frpnet:
+    name: frpnet

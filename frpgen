@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────
+#  frpgen – tiny PKI helper for FRP mutual-TLS
+#  root   : FRP_CA.key / FRP_CA.crt       (CA:TRUE)
+#  client : <name>.key / <name>.crt       (signed by FRP_CA, with SAN)
+#  check  : verify cert against FRP_CA
+# ──────────────────────────────────────────────────────────────
+set -euo pipefail
+
+B=$'\e[1m'; R=$'\e[31m'; G=$'\e[32m'; Y=$'\e[33m'; C=$'\e[36m'; N=$'\e[0m'
+die(){ printf "${R}✖ %s${N}\n" "$1" >&2; exit 1; }
+ok () { printf "${G}✔ %s${N}\n" "$1"; }
+
+usage(){ cat <<EOF
+${B}frpgen${N}  – generate / sign / verify certificates for FRP mTLS
+
+USAGE
+  ${C}frpgen root   <dir>${N}                  [--overwrite] [--days N] [--bits N]
+  ${C}frpgen client <dir>${N} [--ca <dir>]     [--overwrite] [--days N] [--bits N]
+  ${C}frpgen check  <dir>${N} [--ca <dir>]
+
+Flags
+  --ca <dir>     path containing FRP_CA.{crt,key}
+  --overwrite    replace existing .key/.crt
+  --days N       validity (3650 root, 825 client)
+  --bits N       RSA size  (4096 root, 2048 client)
+EOF
+}
+
+[[ $# -lt 1 || $1 =~ ^(-h|--help)$ ]] && { usage; exit 0; }
+ACTION=$1; shift
+[[ $ACTION != root && $ACTION != client && $ACTION != check ]] && die "action must be root|client|check"
+
+DIR="" CA_DIR="" OVER=false DAYS="" BITS=""
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --ca)         CA_DIR=$2; shift ;;
+    --overwrite)  OVER=true ;;
+    --days)       DAYS=$2; shift ;;
+    --bits)       BITS=$2; shift ;;
+    *) [[ -z $DIR ]] && DIR=$1 || die "unknown arg $1" ;;
+  esac; shift
+done
+[[ -z $DIR ]] && die "missing <dir>"
+
+[[ $ACTION == root   ]] && : "${DAYS:=3650}" "${BITS:=4096}"
+[[ $ACTION == client ]] && : "${DAYS:=825}"  "${BITS:=2048}"
+
+CA_NAME="FRP_CA"
+BASENAME=$([[ $ACTION == root ]] && echo "$CA_NAME" || echo "$(basename "$DIR")")
+
+# ─ locate CA (for client / check) ─
+if [[ $ACTION != root ]]; then
+  for p in "${CA_DIR:-$PWD}" "$PWD/.."; do
+    [[ -f $p/${CA_NAME}.crt && -f $p/${CA_NAME}.key ]] && { CA_DIR=$p; break; }
+  done
+  [[ -z ${CA_DIR:-} ]] && die "FRP_CA.{crt,key} not found – use --ca <dir>"
+  CA_CRT="$CA_DIR/${CA_NAME}.crt"; CA_KEY="$CA_DIR/${CA_NAME}.key"
+  ok "CA found → $CA_DIR"
+fi
+
+# ─ check ─
+if [[ $ACTION == check ]]; then
+  CRT="$DIR/$BASENAME.crt"
+  [[ -f $CRT ]] || die "no certificate $CRT"
+  openssl verify -CAfile "$CA_CRT" "$CRT" >/dev/null &&
+    { exp=$(openssl x509 -in "$CRT" -noout -enddate|cut -d= -f2)
+      ok "$BASENAME.crt valid (exp: $exp)"; exit 0; } ||
+    die "$BASENAME failed verification"
+fi
+
+# ─ generate key & cert ─
+mkdir -p "$DIR"
+KEY="$DIR/$BASENAME.key"; CRT="$DIR/$BASENAME.crt"
+[[ -e $KEY || -e $CRT ]] && [[ $OVER == false ]] && die "files exist – use --overwrite"
+
+ok "Generating $KEY ($BITS bits)"
+openssl genrsa -out "$KEY" "$BITS" >/dev/null 2>&1
+
+if [[ $ACTION == root ]]; then
+  ok "Self-signing root CA ($DAYS d)"
+  openssl req -new -x509 -key "$KEY" -sha256 -days "$DAYS" \
+    -subj "/CN=$CA_NAME" \
+    -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
+    -addext "keyUsage=critical,keyCertSign,cRLSign" \
+    -out "$CRT" >/dev/null 2>&1
+else
+  if [[ $BASENAME =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    SAN="IP:$BASENAME"
+  else
+    SAN="DNS:$BASENAME"
+  fi
+  CSR=$(mktemp)
+  openssl req -new -key "$KEY" -subj "/CN=$BASENAME" \
+    -addext "subjectAltName=$SAN" -out "$CSR" >/dev/null 2>&1
+  ok "Signing via CA ($DAYS d, $SAN)"
+  openssl x509 -req -days "$DAYS" -in "$CSR" \
+    -CA "$CA_CRT" -CAkey "$CA_KEY" -CAcreateserial \
+    -sha256 -copy_extensions copy -out "$CRT" >/dev/null 2>&1
+  rm "$CSR"
+fi
+
+ok "Done – $CRT"

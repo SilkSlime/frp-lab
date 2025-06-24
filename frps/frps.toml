@@ -1,0 +1,15 @@
+bindPort = 7000
+
+transport.tls.force         = true
+transport.tls.certFile      = "/etc/frp/certs/frps.crt"
+transport.tls.keyFile       = "/etc/frp/certs/frps.key"
+transport.tls.trustedCaFile = "/etc/frp/certs/CA.crt"
+
+webServer.addr = "0.0.0.0"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "admin"
+
+allowPorts = [
+  { single = 9003 },
+]
